@@ -228,9 +228,10 @@ class BotLogic:
             "top_p": self.top_p
         }
 
+        print(f"processing for {self.model}")
+
         hub_llm = HuggingFaceHub(repo_id=self.model, model_kwargs=parameters)
 
-        print(f"messages: {messages}")
 
         templ = self.tokenizer.apply_chat_template(messages, tokenize=False)
 
