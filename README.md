@@ -49,7 +49,7 @@ BASE_URL=<Machaao Base Url> ex: https://ganglia.machaao.com
 NAME=<Your Bot Display Name> ex: Jess
 DASHBOT_KEY=<Your dashbot token> (Optional) (Conversational Analytics)
 MODEL_NAME=mistralai/Mistral-7B-Instruct-v0.1 # Mistral-Instruct model from Huggingface
-HUGGINGFACEHUB_API_TOKEN=<HUGGINGFACEHUB API TOKEN> 
+HUGGINGFACEHUB_API_TOKEN=<YOUR_HUGGINGFACEHUB API TOKEN> 
 
 # MODEL PARAMS - Unset Parameters would use their default values.
 # Don't use Top_p and Temperature parameters simultaneously.
@@ -69,7 +69,7 @@ This is a conversation between [name] and user.
 Always generate grammatically correct sentences.
 [name] is a very understanding girl.
 [name] and user are seeing each other.
-Act as [name] and respond to the recent discussion between user and assistant.
+Act as [name] and respond to the recent discussion between user and [name]
 ```
 
 ### Modify the core() function in logic/bot_logic.py to personalize responses ###
@@ -145,17 +145,6 @@ Webhook Url: <YOUR-HEROKU-APP-URL>/machaao/hook
 
 ### Test your bot:
 Visit: ```https://messengerx.io/<your-character-name>```
-
-### Known Issues (on M1+ Macs)
-```
-Tips for MPS on Mac [Use Nightly Build]
-pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
-```
-
-- Running on MPS is unstable
-- Running on CPU is reliable but slower
-- Approx inference time > 60 seconds on Mac M1 Pro 2021 / 16GB (GPT-Neo)
-
 
 ## Notes / Additional Resources ##
 * Please note that this document isn't meant to be used as a guide for production environment setup.
