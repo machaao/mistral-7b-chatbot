@@ -8,6 +8,9 @@ from flask import Flask, request
 from machaao import Machaao
 import traceback
 from logic.bot_logic import BotLogic
+from datetime import datetime
+
+import pytz
 
 app = Flask(__name__)
 
@@ -41,8 +44,6 @@ else:
 
 # api_token = bot_params["API_TOKEN"]
 # base_url = bot_params["BASE_URL"]
-
-logic = BotLogic()
 
 
 # noinspection PyProtectedMember
@@ -196,6 +197,8 @@ def process_response(request):
 
 if __name__ == '__main__':
     if not error:
+        server_session_create_time = datetime.now(tz=pytz.utc).replace(tzinfo=None)
+        logic = BotLogic(server_session_create_time)
         app.run(debug=True, port=5000, use_reloader=False)
     else:
         print(f"{error_message}")

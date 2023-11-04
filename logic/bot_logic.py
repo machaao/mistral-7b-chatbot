@@ -1,82 +1,29 @@
 import base64
-import sys
-import traceback
 from datetime import datetime
 import json
-import nlpcloud
-import nltk
 import requests
 from requests.structures import CaseInsensitiveDict
 from dotenv import load_dotenv
 import os
+from langchain import HuggingFaceHub, LLMChain
+from langchain.prompts import PromptTemplate
+from jinja2 import Environment, FileSystemLoader
 
-from torch.nn.utils.rnn import pad_sequence
-from transformers import AutoTokenizer, AutoModel, GPTNeoForCausalLM, GenerationConfig
-import torch
+from transformers import AutoTokenizer
 
-load_dotenv()
-
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-#
-if not torch.backends.mps.is_available():
-    if not torch.backends.mps.is_built():
-        print("MPS not available because the current PyTorch install was not "
-              "built with MPS enabled.")
-    else:
-        print("MPS not available because the current MacOS version is not 12.3+ "
-              "and/or you do not have an MPS-enabled device on this machine.")
-else:
-    device = "mps"
-
-MODEL_NAME = os.environ.get("MODEL_NAME", "")
-MAX_HISTORY_LENGTH = os.environ.get("HISTORY_LENGTH", 5)
-
-model = None
-
-import torch
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, StoppingCriteria, StoppingCriteriaList
-
-# tokenizer = None
-
-if MODEL_NAME:
-    print(f"loading {MODEL_NAME} on local, on device {device}, please wait...")
-    if "gpt-neo" in str.lower(MODEL_NAME):
-        model = GPTNeoForCausalLM.from_pretrained(MODEL_NAME).to(device)
-    elif "llama" in str.lower(MODEL_NAME):
-        model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME,
-            # load_in_4bit=True,
-            torch_dtype=torch.float16
-        ).to(device)
-
-        adapters_name = 'timdettmers/guanaco-7b'
-
-        model = PeftModel.from_pretrained(model, adapters_name)
-        model = model.merge_and_unload()
-        # tokenizer = LlamaTokenizer.from_pretrained(MODEL_NAME)
-        # tokenizer.bos_token_id = 1
-        stop_token_ids = [0]
-    else:
-        model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(device)
-
-    # if not tokenizer:
-    #     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-else:
-    print(f"no model name found - please check your .env file, gonna try to use nlpcloud.io")
+tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
 
 ban_words = ["nigger", "negro", "nazi", "faggot", "murder", "suicide"]
 
+prompt_dir = 'logic'
+template_env = Environment(loader=FileSystemLoader(prompt_dir))
+template_env.trim_blocks = True
+template_env.lstrip_blocks = True
+template_env.line_comment_prefix = "//"
+prompt_file = 'prompt.txt'
+
 # list of banned input words
 c = 'UTF-8'
-
-
-class StopOnTokens(StoppingCriteria):
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        for stop_id in stop_token_ids:
-            if input_ids[0][-1] == stop_id:
-                return True
-        return False
 
 
 def send(url, headers, payload=None):
@@ -90,6 +37,7 @@ def send(url, headers, payload=None):
     return response
 
 
+# don't change for sanity purposes
 def get_details(api_token, base_url):
     _cache_ts_param = str(datetime.now().timestamp())
     e = "L3YxL2JvdHMvY29uZmlnP3Y9"
@@ -109,18 +57,19 @@ def get_details(api_token, base_url):
 
 
 class BotLogic:
-    def __init__(self):
+    def __init__(self, server_session_create_time):
         # Initializing Config Variables
+        load_dotenv()
+
         self.api_token = os.environ.get("API_TOKEN")
         self.base_url = os.environ.get("BASE_URL", "https://ganglia.machaao.com")
-        self.nlp_cloud_token = os.environ.get("NLP_CLOUD_TOKEN")
         self.name = os.environ.get("NAME")
         self.limit = os.environ.get("LIMIT", 'True')
-        self.prefix = self.read_prompt(self.name)
+        self.server_session_create_time = server_session_create_time
 
         # Bot config
         self.top_p = os.environ.get("TOP_P", 1.0)
-        self.top_k = os.environ.get("TOP_K", 16)
+        self.top_k = os.environ.get("TOP_K", 20)
         self.temp = os.environ.get("TEMPERATURE", 0.3)
         self.max_length = os.environ.get("MAX_LENGTH", 50)
         self.validate_bot_params()
@@ -153,7 +102,7 @@ class BotLogic:
             if self.top_k > 1000:
                 raise Exception("Top_k parameter must be less than 1000")
         else:
-            self.top_k = 16
+            self.top_k = 50
         print(f"Top_k = {self.top_k}")
 
         if self.max_length is not None:
@@ -172,21 +121,32 @@ class BotLogic:
 
         return prompt.replace("name]", f"{name}]")
 
-    def get_recent(self, user_id: str):
-        count = MAX_HISTORY_LENGTH
-        ## please don't edit the lines below
-        e = "L3YxL2NvbnZlcnNhdGlvbnMvaGlzdG9yeS8="
-        check = base64.b64decode(e).decode(c)
-        url = f"{self.base_url}{check}{user_id}/{count}"
+    def get_recent(self, user_id: str, current_session=True):
+        limit = 5
+        url = f"{self.base_url}/v1/conversations/history/{user_id}/{limit}"
 
         headers = CaseInsensitiveDict()
         headers["api_token"] = self.api_token
         headers["Content-Type"] = "application/json"
 
-        resp = requests.get(url, headers=headers)
+        resp = requests.get(url, headers=headers, timeout=10)
 
         if resp.status_code == 200:
-            return resp.json()
+            messages = resp.json()
+            if current_session:
+                filtered_messages = list()
+                for message in messages:
+                    create_time_stamp = message.get("_created_at")
+                    create_time = datetime.strptime(create_time_stamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+                    if create_time > self.server_session_create_time:
+                        filtered_messages.append(message)
+
+                while len(filtered_messages) > 0 and (filtered_messages[0].get("type") == "outgoing"):
+                    _ = filtered_messages.pop(0)
+
+                return filtered_messages
+            else:
+                return messages
 
     @staticmethod
     def parse(data):
@@ -218,172 +178,73 @@ class BotLogic:
 
         bot = get_details(api_token, self.base_url)
         name = self.name
-        _prompt = self.prefix
 
         if not bot:
             return False, "Oops, the chat bot doesn't exist or is not active at the moment"
         else:
             name = bot.get("displayName", name)
 
-        if _prompt:
-            _prompt = _prompt.replace("bot_name", f"{name}")
-
         valid = True
 
-        # intents = ["default", "balance"]
-
-        recent_text_data = []
-
-        if str.lower(req.strip()) != "hi":
-            recent_text_data = self.get_recent(user_id)  # [] -> blank for testing
-
+        recent_text_data = self.get_recent(user_id)
         recent_convo_length = len(recent_text_data)
 
-        print(f"len of returned history: {recent_convo_length}")
-
-        # text = word_tokenize(req)
-        # tags = nltk.pos_tag(text)
-        # print(f"tags: {tags}")
-
-        #
-
-        history = str.strip(_prompt) + "\n###\n"
+        print(f"len of history: {recent_convo_length}")
 
         banned = any(ele in req for ele in ban_words)
+
+        messages = [
+            {"role": "user", "content": "Hello, how are you?"},
+            {"role": f"assistant", "content": "I'm doing great. How can I help you today?"}
+        ]
 
         if banned:
             print(f"banned input:" + str(req) + ", id: " + user_id)
             return False, "Oops, please refrain from such words"
 
-        if recent_convo_length > 0:
-            for text in recent_text_data[::-1]:
-                msg_type, text_data = self.parse(text)
-                if text_data and len(text_data) < 200 and "error" not in str.lower(
-                        text_data) and "oops" not in str.lower(text_data):
-                    if msg_type is not None:
-                        # outgoing msg - bot msg
-                        history += f"{name}: " + text_data
-                    else:
-                        # incoming msg - user msg
-                        history += "stranger: " + text_data
+        for text in recent_text_data[::-1]:
+            msg_type, text_data = self.parse(text)
 
-                    history += "\n"
+            if text_data:
+                e_message = "Oops," in text_data and "connect@machaao.com" in text_data
 
-                    if msg_type == "outgoing":
-                        history += "###\n"
-        else:
-            history += f"stranger: " + str(req) + "\n"
+                if msg_type is not None and not e_message:
+                    # outgoing msg - bot msg
+                    messages.append({
+                        "role": f"assistant",
+                        "content": text_data
+                    })
+                else:
+                    # incoming msg - user msg
+                    messages.append({
+                        "role": "user",
+                        "content": text_data
+                    })
 
-        # history += f"{name}: \n"
-        # Max input size = 2048 tokens
+        print(messages)
+
         try:
-            print(f"processing prompt:\n{history}")
-            if model:
-                resp = self.process_via_local(req, name, history)
-            else:
-                resp = self.process_via_nlpcloud(name, history)
-
-            # reply = str.capitalize(resp)
-            # print(history + reply)
-            return valid, resp
+            reply = self.process_via_huggingface(name, messages)
+            return valid, reply
         except Exception as e:
             print(f"error - {e}, for {user_id}")
-            traceback.print_exc(file=sys.stdout)
             return False, "Oops, I am feeling a little overwhelmed with messages\nPlease message me later"
 
-    def process_via_nlpcloud(self, name, prompt):
-        _client = nlpcloud.Client("gpt-j", self.nlp_cloud_token, gpu=True)
-        generation = _client.generation(prompt,
-                                        min_length=1,
-                                        max_length=self.max_length,
-                                        top_k=self.top_k,
-                                        top_p=self.top_p,
-                                        temperature=self.temp,
-                                        length_no_input=True,
-                                        end_sequence="\n###",
-                                        remove_end_sequence=True,
-                                        remove_input=True)
-        resp = str.strip(generation["generated_text"])
-        output = str.replace(resp, f"{name}:", "")
-        return output
+    def process_via_huggingface(self, name, messages):
+        hub_llm = HuggingFaceHub(repo_id="mistralai/Mistral-7B-Instruct-v0.1")
 
-    def process_via_local(self, req, name, prompt):
-        end_sequence = "###\n"
-        # Initialize a StopOnTokens object
-        stop = StopOnTokens()
+        print(messages)
 
-        max_length = int(len(prompt) + len(req) + 10)
+        templ = tokenizer.apply_chat_template(messages, tokenize=False)
 
-        if max_length > 2048:
-            max_length = 2048
+        _prompt = self.read_prompt(name)
 
-        max_new_tokens = 1536
-        temperature = 0.7
-        top_p = 0.9
-        top_k = 0
-        repetition_penalty = 1.1
+        prompt = PromptTemplate(
+            input_variables=["conversation"],
+            template=_prompt + ": {conversation}"
+        )
 
-        if "llama" in MODEL_NAME:
-            # Tokenize the messages string
-            tokenizer = LlamaTokenizer.from_pretrained(MODEL_NAME)
-            tokenizer.bos_token_id = 1
-
-            input_ids = tokenizer(prompt, return_tensors="pt").to(device)
-
-            # streamer = Text(tokenizer, timeout=10.0, skip_prompt=True, skip_special_tokens=True)
-            generation_config = GenerationConfig(
-                max_new_tokens=max_new_tokens,
-                temperature=temperature,
-                do_sample=temperature > 0.0,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                repetition_penalty=repetition_penalty,
-                stopping_criteria=StoppingCriteriaList([stop]),
-            )
-            # m = generation_config.from_pretrained(MODEL_NAME)
-
-            gen_tokens = model.generate(**input_ids, generation_config=generation_config)
-        else:
-            tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-            input_ids = tokenizer(prompt, return_tensors="pt").to(device).input_ids
-            sens = pad_sequence(input_ids, batch_first=True, padding_value=-1)
-            attention_mask = (sens != -1).long()
-
-            gen_tokens = model.generate(
-                sens,
-                do_sample=True,
-                temperature=0.9,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                max_length=max_length,
-                attention_mask=attention_mask,
-                eos_token_id=int(tokenizer.convert_tokens_to_ids(end_sequence))
-            )
-
-        gen = tokenizer.batch_decode(gen_tokens)
-
-        print(f"{gen}")
-
-        gen_text = gen[0]
-
-        gen_text = str.replace(str(gen_text), prompt, "")
-
-        gen_text = str.split(gen_text, "\n")
-        first_match = None
-
-        if len(gen_text) > 0:
-            first_match = gen_text[0]
-
-            for g in gen_text:
-                if len(g) > 5 and f"{name}:" in g and g not in prompt:
-                    gen_text = g
-                    break
-
-        if first_match:
-            gen_text = first_match
-
-        output = str.replace(gen_text, f"{name}:", "")
-
-        print("output text: " + output)
-
-        return str.strip(output)
+        hub_chain = LLMChain(prompt=prompt, llm=hub_llm, verbose=True)
+        resp = hub_chain.run(templ)
+        print(resp)
+        return resp
