@@ -1,26 +1,16 @@
 import base64
-from datetime import datetime
 import json
-import requests
-from requests.structures import CaseInsensitiveDict
-from dotenv import load_dotenv
 import os
+from datetime import datetime
+
+import requests
+from dotenv import load_dotenv
 from langchain import HuggingFaceHub, LLMChain
 from langchain.prompts import PromptTemplate
-from jinja2 import Environment, FileSystemLoader
-
+from requests.structures import CaseInsensitiveDict
 from transformers import AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.1")
-
 ban_words = ["nigger", "negro", "nazi", "faggot", "murder", "suicide"]
-
-prompt_dir = 'logic'
-template_env = Environment(loader=FileSystemLoader(prompt_dir))
-template_env.trim_blocks = True
-template_env.lstrip_blocks = True
-template_env.line_comment_prefix = "//"
-prompt_file = 'prompt.txt'
 
 # list of banned input words
 c = 'UTF-8'
@@ -66,6 +56,8 @@ class BotLogic:
         self.name = os.environ.get("NAME")
         self.limit = os.environ.get("LIMIT", 'True')
         self.server_session_create_time = server_session_create_time
+        self.model = os.environ.get("MODEL_NAME")
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model)
 
         # Bot config
         self.top_p = os.environ.get("TOP_P", 1.0)
@@ -79,7 +71,7 @@ class BotLogic:
         print("Setting up Bot server with parameters:")
         if self.top_p is not None and self.temp is not None:
             print("Temperature and Top_p parameters can't be used together. Using default value of top_p")
-            self.top_p = 1.0
+            self.top_p = 0.5
 
         if self.temp is not None:
             self.temp = float(self.temp)
@@ -91,7 +83,7 @@ class BotLogic:
 
         if self.top_p is not None:
             self.top_p = float(self.top_p)
-            if self.top_p < 0.0 or self.top_p > 1.0:
+            if self.top_p <= 0.0 or self.top_p >= 1.0:
                 raise Exception("Top_p parameter must be between 0 and 1")
         else:
             self.top_p = 1.0
@@ -221,8 +213,6 @@ class BotLogic:
                         "content": text_data
                     })
 
-        # print(messages)
-
         try:
             reply = self.process_via_huggingface(name, messages)
             return valid, reply
@@ -231,11 +221,18 @@ class BotLogic:
             return False, "Oops, I am feeling a little overwhelmed with messages\nPlease message me later"
 
     def process_via_huggingface(self, name, messages):
-        hub_llm = HuggingFaceHub(repo_id="mistralai/Mistral-7B-Instruct-v0.1", model_kwargs={"max_new_tokens": 512})
+        parameters = {
+            "max_new_tokens": self.max_length,
+            "temperature": self.temp,
+            "top_k": self.top_k,
+            "top_p": self.top_p
+        }
+
+        hub_llm = HuggingFaceHub(repo_id=self.model, model_kwargs=parameters)
 
         print(f"messages: {messages}")
 
-        templ = tokenizer.apply_chat_template(messages, tokenize=False)
+        templ = self.tokenizer.apply_chat_template(messages, tokenize=False)
 
         _prompt = self.read_prompt(name)
 
@@ -246,5 +243,4 @@ class BotLogic:
 
         hub_chain = LLMChain(prompt=prompt, llm=hub_llm, verbose=True)
         resp = hub_chain.run(templ)
-        print(f"response: {resp}")
         return resp
