@@ -9,7 +9,21 @@ looking to build AI Powered Personalized Characters using the latest [Mistral](h
 * Ngrok for Tunneling
 * Desktop / Laptop with a minimum of 16GB RAM
 * Huggingface hub API token - Follow [these](https://huggingface.co/docs/hub/security-tokens) instructions to generate one
-* Machaao API Token - Follow [these](#login-optional-fields) instructions to get your token
+* Machaao API Token - Follow the instructions below to get your token
+
+## Get MessengerX.io API Key ##
+* Available on the [MessengerX.io](https://portal.messengerx.io/index#!/dashboard) portal
+* If you aren't registered, please create an account and login
+* Set up your new bot by providing it a `Character Name` and `Description`. 
+  * Select `Custom Bot` option
+  * It should look something like this:
+  * ![figure](https://github.com/machaao/machaao-py/raw/master/images/bot_setup.png?raw=true)
+* Click on `Save`. It will redirect you to your dashboard.
+* On your dashboard you can see your newly created bot
+  * ![figure](https://github.com/machaao/machaao-py/raw/master/images/new_bot.png?raw=true)
+* Click on `Settings` tab. It will open your bot configuration page.
+  * ![figure](https://github.com/machaao/machaao-py/raw/master/images/bot_config.png?raw=true)
+* On the configuration page you'd be able to see a string named `token`. That's your `Machaao API Token`
 
 ## Local Setup ##
 ### Download or clone this repository ###
@@ -18,7 +32,6 @@ git clone https://github.com/machaao/mistral-7b-chatbot.git
 
 cd mistral-7b-chatbot
 ```
-
 
 ### Install requirements ###
 ```bash
@@ -93,25 +106,8 @@ Refer to this screenshot below
 ### Test your bot:
 Click on `Preview` to chat with your bot
 
-For better understanding of the above GPT-J parameters, check out the [nlpcloud.io](https://docs.nlpcloud.io/#generation) docs
-<h2 id="login-optional-fields">
-</h2>
-
-## Get MessengerX.io API Key ##
-* Available on the [MessengerX.io](https://portal.messengerx.io/index#!/dashboard)
-* If you aren't registered, please create an account and login
-* Set up your new bot by providing it a `Character Name` and `Description`. 
-  * Select `Custom Bot` option
-  * It should look something like this:
-  * ![figure](https://github.com/machaao/machaao-py/raw/master/images/bot_setup.png?raw=true)
-* Click on `Save`. It will redirect you to your dashboard.
-* On your dashboard you can see your newly created bot
-  * ![figure](https://github.com/machaao/machaao-py/raw/master/images/new_bot.png?raw=true)
-* Click on `Settings` tab. It will open your bot configuration page.
-  * ![figure](https://github.com/machaao/machaao-py/raw/master/images/bot_config.png?raw=true)
-* On the configuration page you'd be able to see a string named `token`. That's your `Machaao API Token`
   
-## Get Dashbot.io API KEY (Recommended for Production) ##
+### Get Dashbot.io API KEY (Recommended for Production) ###
 * You can acquire the API Key via [Dashbot.io](https://dashbot.io) and replace it in the ```.env``` file under the entry
 ```DASHBOT_KEY```
 
