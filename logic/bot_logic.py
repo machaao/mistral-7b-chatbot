@@ -119,7 +119,7 @@ class BotLogic:
         with open(file_name) as f:
             prompt = f.read()
 
-        return prompt.replace("name]", f"{name}]")
+        return prompt.replace("[name]", f"{name}")
 
     def get_recent(self, user_id: str, current_session=True):
         limit = 5
@@ -221,7 +221,7 @@ class BotLogic:
                         "content": text_data
                     })
 
-        print(messages)
+        # print(messages)
 
         try:
             reply = self.process_via_huggingface(name, messages)
@@ -231,9 +231,9 @@ class BotLogic:
             return False, "Oops, I am feeling a little overwhelmed with messages\nPlease message me later"
 
     def process_via_huggingface(self, name, messages):
-        hub_llm = HuggingFaceHub(repo_id="mistralai/Mistral-7B-Instruct-v0.1")
+        hub_llm = HuggingFaceHub(repo_id="mistralai/Mistral-7B-Instruct-v0.1", model_kwargs={"max_new_tokens": 512})
 
-        print(messages)
+        print(f"messages: {messages}")
 
         templ = tokenizer.apply_chat_template(messages, tokenize=False)
 
@@ -246,5 +246,5 @@ class BotLogic:
 
         hub_chain = LLMChain(prompt=prompt, llm=hub_llm, verbose=True)
         resp = hub_chain.run(templ)
-        print(resp)
+        print(f"response: {resp}")
         return resp
