@@ -225,6 +225,7 @@ class BotLogic:
             "max_new_tokens": self.max_length,
             "temperature": self.temp,
             "top_k": self.top_k,
+            "use_cache": False,
             "top_p": self.top_p
         }
 
