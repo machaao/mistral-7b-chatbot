@@ -5,11 +5,10 @@ looking to build AI Powered Personalized Characters using the latest [Mistral](h
 ## Requirements for running it locally on laptop ##
 * Windows / Mac / Linux with Git installed
 * Python 3.8
-* MessengerX.io API Token - FREE for Indie Developers
 * Ngrok for Tunneling
 * Desktop / Laptop with a minimum of 16GB RAM
 * Huggingface hub API token - Follow [these](https://huggingface.co/docs/hub/security-tokens) instructions to generate one
-* Machaao API Token - Follow the instructions below to get your token
+* MessengerX API Token - Follow the instructions below to get your token
 
 ## Get MessengerX.io API Key ##
 * Available on the [MessengerX.io](https://portal.messengerx.io/index#!/dashboard) portal
