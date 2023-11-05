@@ -74,7 +74,7 @@ Act as [name] and respond to the recent discussion between user and [name]
 ```
 def core(self, req: str, user_id: str):
 ```
-* Refer to [platform documentation](https://messengerx.rtfd.iio) for personalization options
+* Refer to [platform documentation](https://messengerx.rtfd.io) for personalization options
 
 ### Run the chatbot server from the root directory of the repo ###
 ```
