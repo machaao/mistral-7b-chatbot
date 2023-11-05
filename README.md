@@ -1,11 +1,11 @@
-## A Machaao Chatbot Template using Mistral-Instruct as LLM ##
+## A Langchain Chatbot Template using Mistral-Instruct as LLM ##
 The intent of this template is to serve as a quick intro guide for fellow developers 
-looking to build AI Powered Personalized Characters using the latest [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) Large Language Model
+looking to build langchain powered chatbots using [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) 7B LLM(s)
 
 ## Requirements for running it locally on laptop ##
 * Windows / Mac / Linux with Git installed
 * Python 3.8
-* Ngrok for Tunneling
+* Ngrok for Tunneling (For Local Laptop Development Environment)
 * Desktop / Laptop with a minimum of 16GB RAM
 * Huggingface hub API token - Follow [these](https://huggingface.co/docs/hub/security-tokens) instructions to generate one
 * MessengerX API Token - Follow the instructions below to get your token
